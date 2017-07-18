@@ -416,7 +416,7 @@ class discriminator_model():
         
         for post, resp in batch:
             feed_post_length.append(len(post))
-            resp.cut(resp)
+            resp = cut(resp)
             feed_resp_length.append(len(resp))
             for time in range(self.max_post_length):
                 feed_post[time].append(post[time] if time < len(post) else PAD_ID)
