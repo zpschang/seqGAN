@@ -1,4 +1,5 @@
 import tensorflow as tf
+import numpy as np
 from tensorflow.python.layers import core as layers_core
 
 GO_ID = 0
@@ -7,6 +8,13 @@ UNK_ID = 2
 PAD_ID = 3
 
 sample_times = 5
+
+def cut(resp):
+    for time in range(len(resp)):
+        if resp[time] == EOS_ID:
+            resp = resp[:time+1]
+            break
+    return resp
 
 class generator_model():
     def __init__(self,
@@ -40,14 +48,14 @@ class generator_model():
             encoder_embedded = tf.nn.embedding_lookup(embedding, self.encoder_input)
             decoder_embedded = tf.nn.embedding_lookup(embedding, self.decoder_input)
 
-            self.cell_state = tf.placeholder(tf.float32, [8, None, lstm_size]) # for partial-sampling
+            self.cell_state = tf.placeholder(tf.float32, [2*num_layer, None, lstm_size]) # for partial-sampling
             self.attention = tf.placeholder(tf.float32, [None, lstm_size])
             self.time = tf.placeholder(tf.int32)
             self.alignments = tf.placeholder(tf.float32, [None, max_length_encoder])
             
             def build_attention_state():
                 cell_state = tuple([tf.contrib.rnn.LSTMStateTuple(self.cell_state[i], self.cell_state[i+1])
-                    for i in range(0, 8, 2)])
+                    for i in range(0, 2*num_layer, 2)])
                 print cell_state
                 return tf.contrib.seq2seq.AttentionWrapperState(cell_state,
                     self.attention, self.time, self.alignments, tuple([]))
@@ -189,20 +197,23 @@ class generator_model():
         resp_generator = self.generate(sess, batch, 'sample')
         
         max_len = len(resp[0])
+        feed_reward = [] # max_len * batch_size
+        feed_post = [[] for _ in range(self.max_length_encoder)]
+        feed_post_length = []
+        for index in len(self.batch_size):
+            post = batch[index][0]
+            feed_post_length.append(len(post))
+            for time in range(self.max_length_encoder):
+                feed_post[time].append(post[time] if time < len(post) else PAD_ID)
         for t in range(max_len):
             # for each partial response, get the final hidden state
-            feed_post = [[] for _ in range(self.max_length_encoder)]
             feed_resp = [[] for _ in range(self.max_length_decoder)]
-            feed_post_length = []
             feed_resp_length = []
             for index in len(self.batch_size):
-                post = batch[index][0]
                 resp = resp_generator[index]
+                resp = cut(resp)
                 resp = resp[:t]
-                feed_post_length.append(len(post))
                 feed_resp_length.append(len(resp))
-                for time in range(self.max_length_encoder):
-                    feed_post[time].append(post[time] if time < len(post) else PAD_ID)
                 for time in range(self.max_length_decoder):
                     feed_resp[time].append(resp[time] if time < len(resp) else PAD_ID)
             feed_dict = {}
@@ -215,6 +226,7 @@ class generator_model():
 
             # from partial response, randomly sample several full responses
             start_tokens = [resp[t-1] for resp in resp_generator] if t >= 1 else [GO_ID] * self.batch_size
+            mean_reward = [0 for _ in range(self.batch_size)]
             for num in range(sample_times):
                 cell_state = []
                 for lstm_tuple in state.cell_state:
@@ -228,13 +240,49 @@ class generator_model():
                 feed_dict[self.alignments] = state.alignments
 
                 output = sess.run(self.result_partial, feed_dict=feed_dict)
-            # feed into disciminator and compute Q
-            pass
-        
+                # feed into disciminator and compute Q
+                feed_resp = []
+                for index in range(self.batch_size):
+                    resp = resp_generator[index]
+                    resp = cut(resp)
+                    length = len(resp)
+                    resp = resp[:t]
+                    final_resp = resp + output[index] if length > t else resp
+                    feed_resp.append(final_resp)
+                feed_batch = [(batch[index][0], feed_resp[index]) for index in range(self.batch_size)]
+                poss = discriminator.evaluate(sess, batch)
+                for index in range(self.batch_size):
+                    mean_reward[index] += poss[index] / sample_times
+            feed_reward.append(mean_reward)
+        feed_reward = feed_reward + [[0 for _ in self.batch_size]] * (self.max_length_decoder - max_len)
+
         # update generator
+        feed_resp = [[] for _ in range(self.max_length_decoder)]
+        feed_resp_length = []
+        for index in len(self.batch_size):
+            resp = resp_generator[index]
+            resp = cut(resp)
+            feed_resp_length.append(len(resp))
+            for time in range(self.max_length_decoder):
+                feed_resp[time].append(resp[time] if time < len(resp) else PAD_ID)
+                if time < len(resp) and resp[time] != UNK_ID:
+                    feed_weight[time].append(1)
+                else:
+                    feed_weight[time].append(0)
+        feed_dict = {}
+        feed_dict[self.encoder_input] = feed_post
+        feed_dict[self.encoder_length] = feed_post_length
+        feed_dict[self.decoder_output] = feed_resp
+        feed_dict[self.decoder_length] = feed_resp_length
+        feed_dict[self.reward] = feed_reward
+        feed_dict[self.target_weight] = feed_weight
+
+        loss, _ = sess.run([self.loss_generator, self.opt_update], feed_dict=feed_dict)
+        print 'generator updated, loss =', loss
 
     def generate(self, sess, batch, mode):
         feed_post = [[] for _ in range(self.max_length_encoder)]
+        feed_weight = [[] for _ in range(self.max_length_decoder)]
         feed_post_length = []
         for post, resp in batch:
             feed_post_length.append(len(post))
@@ -342,13 +390,9 @@ class discriminator_model():
         for index in range(self.batch_size):
             post = batch[index][0]
             resp = resp_generator[index]
+            resp = cut(resp)
             feed_post_length.append(len(post))
-            tmp = len(resp)
-            for time in range(len(resp)):
-                if resp[time] == EOS_ID:
-                    tmp = time+1
-                    break
-            feed_resp_length.append(tmp)
+            feed_resp_length.append(len(resp))
             feed_labels.append(0)
             for time in range(self.max_post_length):
                 feed_post[time].append(post[time] if time < len(post) else PAD_ID)
@@ -372,12 +416,8 @@ class discriminator_model():
         
         for post, resp in batch:
             feed_post_length.append(len(post))
-            tmp = len(resp)
-            for time in range(len(resp)):
-                if resp[time] == EOS_ID:
-                    tmp = time+1
-                    break
-            feed_resp_length.append(tmp)
+            resp.cut(resp)
+            feed_resp_length.append(len(resp))
             for time in range(self.max_post_length):
                 feed_post[time].append(post[time] if time < len(post) else PAD_ID)
                 feed_resp[time].append(resp[time] if time < len(resp) else PAD_ID)
