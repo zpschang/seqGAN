@@ -42,6 +42,7 @@ class generator_model():
             batch_size = tf.shape(self.encoder_length)[0]
 
             decoder_output = self.decoder_output
+            # if decoder_output have 0 dimention ???
             self.decoder_input = tf.concat([tf.ones([1, batch_size], dtype=tf.int32) * GO_ID, decoder_output[:-1]], axis=0)
 
             embedding = tf.get_variable('embedding', [vocab_size, embedding_size])
@@ -196,11 +197,11 @@ class generator_model():
         batch = reader.get_batch(self.batch_size)
         resp_generator = self.generate(sess, batch, 'sample')
         
-        max_len = len(resp[0])
+        max_len = len(resp_generator[0])
         feed_reward = [] # max_len * batch_size
         feed_post = [[] for _ in range(self.max_length_encoder)]
         feed_post_length = []
-        for index in len(self.batch_size):
+        for index in range(self.batch_size):
             post = batch[index][0]
             feed_post_length.append(len(post))
             for time in range(self.max_length_encoder):
@@ -209,7 +210,7 @@ class generator_model():
             # for each partial response, get the final hidden state
             feed_resp = [[] for _ in range(self.max_length_decoder)]
             feed_resp_length = []
-            for index in len(self.batch_size):
+            for index in range(self.batch_size):
                 resp = resp_generator[index]
                 resp = cut(resp)
                 resp = resp[:t]
@@ -259,7 +260,7 @@ class generator_model():
         # update generator
         feed_resp = [[] for _ in range(self.max_length_decoder)]
         feed_resp_length = []
-        for index in len(self.batch_size):
+        for index in range(self.batch_size):
             resp = resp_generator[index]
             resp = cut(resp)
             feed_resp_length.append(len(resp))
@@ -293,9 +294,9 @@ class generator_model():
         feed_dict[self.encoder_length] = feed_post_length
         feed_dict[self.max_inference_length] = self.max_length_decoder
         if mode == 'sample':
-            result = sess.run([self.result_sample], feed_dict=feed_dict)
+            result = sess.run(self.result_sample, feed_dict=feed_dict)
         elif mode == 'greedy':
-            result = sess.run([self.result_greedy], feed_dict=feed_dict)
+            result = sess.run(self.result_greedy, feed_dict=feed_dict)
         return result
 
 class discriminator_model():
