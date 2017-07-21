@@ -3,6 +3,13 @@ import tensorflow as tf
 from model import generator_model, discriminator_model
 from reader import reader
 
+import os
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
+
+from tensorflow.python.client import device_lib
+print device_lib.list_local_devices()
+
 reader = reader('data/small/weibo_pair_train_Q.post',
     'data/small/weibo_pair_train_Q.response', 'data/words.txt')
 
@@ -43,11 +50,12 @@ g_step = 1
 loop_num = 0
 
 try:
+    """
     while reader.epoch < 3:
         g_model.pretrain(sess, reader)
     for _ in range(1000):
         d_model.update(sess, g_model, reader)
-    
+    """
     while True:
         for _ in range(d_step):
             g_model.update(sess, d_model, reader)

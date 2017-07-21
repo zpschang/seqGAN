@@ -206,7 +206,7 @@ class generator_model():
             feed_post_length.append(len(post))
             for time in range(self.max_length_encoder):
                 feed_post[time].append(post[time] if time < len(post) else PAD_ID)
-        for t in range(max_len):
+        for t in range(max_len+1):
             # for each partial response, get the final hidden state
             feed_resp = [[] for _ in range(self.max_length_decoder)]
             feed_resp_length = []
@@ -264,6 +264,10 @@ class generator_model():
                 for index in range(self.batch_size):
                     mean_reward[index] += poss[index] / sample_times
             feed_reward.append(mean_reward)
+        for t in range(max_len):
+            for index in range(self.batch_size):
+                feed_reward[t][index] = feed_reward[t+1][index] - feed_reward[t][index]
+        feed_reward = feed_reward[:max_len]
         feed_reward = feed_reward + [[0 for _ in range(self.batch_size)]] * (self.max_length_decoder - max_len)
 
         # update generator
