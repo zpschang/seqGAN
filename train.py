@@ -38,23 +38,19 @@ except:
     sess.run(tf.global_variables_initializer())
     print 'load failed'
 
+d_step = 5
+g_step = 1
+
 try:
-    """
-    for _ in range(100):
+    while reader.epoch < 3:
         g_model.pretrain(sess, reader)
-    
-    #batch = reader.get_batch(40)
-    #model_resp = g_model.generate(sess, batch, 'greedy')
-    #print model_resp
-    
-    
-    for _ in range(100):
+    for _ in range(1000):
         d_model.update(sess, g_model, reader)
-    """
+    
     while True:
-        for _ in range(100):
+        for _ in range(d_step):
             g_model.update(sess, d_model, reader)
-        for _ in range(100):
+        for _ in range(g_step):
             d_model.update(sess, g_model, reader)
         saver.save(sess, 'saved/model.ckpt')
 except KeyboardInterrupt:
