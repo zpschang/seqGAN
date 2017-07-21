@@ -260,7 +260,7 @@ class generator_model():
                     final_resp = np.append(resp, output[index]) if length > t else resp
                     feed_resp.append(final_resp)
                 feed_batch = [(batch[index][0], feed_resp[index]) for index in range(self.batch_size)]
-                poss = discriminator.evaluate(sess, batch)
+                poss = discriminator.evaluate(sess, feed_batch)
                 for index in range(self.batch_size):
                     mean_reward[index] += poss[index] / sample_times
             feed_reward.append(mean_reward)
@@ -269,6 +269,7 @@ class generator_model():
                 feed_reward[t][index] = feed_reward[t+1][index] - feed_reward[t][index]
         feed_reward = feed_reward[:max_len]
         feed_reward = feed_reward + [[0 for _ in range(self.batch_size)]] * (self.max_length_decoder - max_len)
+        print feed_reward
 
         # update generator
         feed_resp = [[] for _ in range(self.max_length_decoder)]
@@ -287,6 +288,33 @@ class generator_model():
         feed_dict = {}
         feed_dict[self.encoder_input] = feed_post
         feed_dict[self.encoder_length] = feed_post_length
+        feed_dict[self.decoder_output] = feed_resp
+        feed_dict[self.decoder_length] = feed_resp_length
+        feed_dict[self.reward] = feed_reward
+        feed_dict[self.target_weight] = feed_weight
+
+        loss, _ = sess.run([self.loss_generator, self.opt_update], feed_dict=feed_dict)
+        print 'generator updated, loss =', loss
+
+        # teacher forcing
+        feed_dict = {}
+        feed_dict[self.encoder_input] = feed_post
+        feed_dict[self.encoder_length] = feed_post_length
+        feed_resp = [[] for _ in range(self.max_length_decoder)]
+        feed_weight = [[] for _ in range(self.max_length_decoder)]
+        feed_reward = [[] for _ in range(self.max_length_decoder)]
+        feed_resp_length = []
+        for index in range(self.batch_size):
+            resp = batch[index][1]
+            resp = cut(resp)
+            feed_resp_length.append(len(resp))
+            for time in range(self.max_length_decoder):
+                feed_reward[time].append(1)
+                feed_resp[time].append(resp[time] if time < len(resp) else PAD_ID)
+                if time < len(resp) and resp[time] != UNK_ID:
+                    feed_weight[time].append(1)
+                else:
+                    feed_weight[time].append(0)
         feed_dict[self.decoder_output] = feed_resp
         feed_dict[self.decoder_length] = feed_resp_length
         feed_dict[self.reward] = feed_reward
@@ -362,7 +390,7 @@ class discriminator_model():
             state_final_concat = tf.concat([state_final.c, state_final.h], axis=1)
             logits = tf.layers.dense(state_final_concat, 2)
             print logits, self.labels
-            self.loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels, logits=logits)
+            self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels, logits=logits))
             self.poss = tf.nn.softmax(logits)[:, 1]
             
             result = tf.argmax(logits, axis=1)
@@ -420,8 +448,8 @@ class discriminator_model():
         feed_dict[self.resp_length] = feed_resp_length
         feed_dict[self.labels] = feed_labels
 
-        loss, acc, _ = sess.run([self.loss, self.acc, self.opt_train], feed_dict=feed_dict)
-        print 'discriminator:', loss, acc
+        poss, loss, acc, _ = sess.run([self.poss, self.loss, self.acc, self.opt_train], feed_dict=feed_dict)
+        print 'discriminator:', loss, acc, poss
 
     def evaluate(self, sess, batch):
         feed_post = [[] for _ in range(self.max_post_length)]
@@ -444,6 +472,7 @@ class discriminator_model():
         feed_dict[self.resp_length] = feed_resp_length
 
         poss = sess.run(self.poss, feed_dict=feed_dict)
+        print poss
         return poss
 
 if __name__ == '__main__':

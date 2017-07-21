@@ -17,7 +17,7 @@ print len(reader.d)
 
 g_model = generator_model(vocab_size=len(reader.d),
     embedding_size=128,
-    lstm_size=200,
+    lstm_size=128,
     num_layer=4,
     max_length_encoder=40,
     max_length_decoder=40,
@@ -26,7 +26,7 @@ g_model = generator_model(vocab_size=len(reader.d),
     learning_rate=0.001)
 d_model = discriminator_model(vocab_size=len(reader.d),
     embedding_size=128,
-    lstm_size=200,
+    lstm_size=128,
     num_layer=4,
     max_post_length=40,
     max_resp_length=40,
@@ -50,12 +50,13 @@ g_step = 1
 loop_num = 0
 
 try:
-    """
-    while reader.epoch < 3:
+    
+    for _ in range(100000):
         g_model.pretrain(sess, reader)
+        
     for _ in range(1000):
         d_model.update(sess, g_model, reader)
-    """
+    
     while True:
         for _ in range(d_step):
             g_model.update(sess, d_model, reader)
