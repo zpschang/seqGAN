@@ -233,6 +233,8 @@ class generator_model():
                 for lstm_tuple in state.cell_state:
                     cell_state = cell_state + [lstm_tuple.c, lstm_tuple.h]
                 feed_dict = {}
+                feed_dict[self.encoder_input] = feed_post
+                feed_dict[self.encoder_length] = feed_post_length
                 feed_dict[self.start_tokens] = start_tokens
                 feed_dict[self.max_inference_length] = self.max_length_decoder - t
                 feed_dict[self.cell_state] = cell_state
@@ -248,17 +250,25 @@ class generator_model():
                     resp = cut(resp)
                     length = len(resp)
                     resp = resp[:t]
-                    final_resp = resp + output[index] if length > t else resp
+                    print '[', 
+                    for word in resp:
+                        print reader.symbol[word],
+                    print '], [',
+                    for word in output[index]:
+                        print reader.symbol[word],
+                    print ']'
+                    final_resp = np.append(resp, output[index]) if length > t else resp
                     feed_resp.append(final_resp)
                 feed_batch = [(batch[index][0], feed_resp[index]) for index in range(self.batch_size)]
                 poss = discriminator.evaluate(sess, batch)
                 for index in range(self.batch_size):
                     mean_reward[index] += poss[index] / sample_times
             feed_reward.append(mean_reward)
-        feed_reward = feed_reward + [[0 for _ in self.batch_size]] * (self.max_length_decoder - max_len)
+        feed_reward = feed_reward + [[0 for _ in range(self.batch_size)]] * (self.max_length_decoder - max_len)
 
         # update generator
         feed_resp = [[] for _ in range(self.max_length_decoder)]
+        feed_weight = [[] for _ in range(self.max_length_decoder)]
         feed_resp_length = []
         for index in range(self.batch_size):
             resp = resp_generator[index]
@@ -320,7 +330,7 @@ class discriminator_model():
             self.resp_length = tf.placeholder(tf.int32, [None])
             self.labels = tf.placeholder(tf.int64, [None])
 
-            batch_size = tf.shape(self.labels)[0]
+            batch_size = tf.shape(self.post_length)[0]
             post_embedded = tf.nn.embedding_lookup(embedding, self.post_input)
             resp_embedded = tf.nn.embedding_lookup(embedding, self.resp_input)
             def single_cell():

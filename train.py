@@ -15,7 +15,7 @@ g_model = generator_model(vocab_size=len(reader.d),
     max_length_encoder=40,
     max_length_decoder=40,
     max_gradient_norm=2,
-    batch_size_num=40,
+    batch_size_num=20,
     learning_rate=0.001)
 d_model = discriminator_model(vocab_size=len(reader.d),
     embedding_size=128,
@@ -24,7 +24,7 @@ d_model = discriminator_model(vocab_size=len(reader.d),
     max_post_length=40,
     max_resp_length=40,
     max_gradient_norm=2,
-    batch_size_num=40,
+    batch_size_num=20,
     learning_rate=0.001)
 
 saver = tf.train.Saver(tf.global_variables(), keep_checkpoint_every_n_hours=1.0)
