@@ -269,7 +269,7 @@ class generator_model():
                 feed_reward[t][index] = feed_reward[t+1][index] - feed_reward[t][index]
         feed_reward = feed_reward[:max_len]
         feed_reward = feed_reward + [[0 for _ in range(self.batch_size)]] * (self.max_length_decoder - max_len)
-        print feed_reward
+        #print feed_reward
 
         # update generator
         feed_resp = [[] for _ in range(self.max_length_decoder)]

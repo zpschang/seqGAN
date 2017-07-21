@@ -50,10 +50,10 @@ g_step = 1
 loop_num = 0
 
 try:
-    
+    """
     for _ in range(100000):
         g_model.pretrain(sess, reader)
-        
+    """
     for _ in range(1000):
         d_model.update(sess, g_model, reader)
     
