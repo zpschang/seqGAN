@@ -40,6 +40,7 @@ except:
 
 d_step = 5
 g_step = 1
+loop_num = 0
 
 try:
     while reader.epoch < 3:
@@ -52,6 +53,8 @@ try:
             g_model.update(sess, d_model, reader)
         for _ in range(g_step):
             d_model.update(sess, g_model, reader)
-        saver.save(sess, 'saved/model.ckpt')
+        loop_num += 1
+        if loop_num % 50 == 0:
+            saver.save(sess, 'saved/model.ckpt')
 except KeyboardInterrupt:
     saver.save(sess, 'saved/model.ckpt')
