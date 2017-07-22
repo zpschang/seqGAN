@@ -128,10 +128,12 @@ class generator_model():
                 output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_greedy,
                     swap_memory=True, scope=decoder_scope, maximum_iterations=self.max_inference_length)
                 self.result_greedy = output.sample_id
-                """
+                
                 # inference (beam search)
-                beam_search_init_state = tf.contrib.seq2seq.tile_batch(
-                    decoder_init_state, multiplier=beam_width)
+                init_state = tf.contrib.seq2seq.tile_batch(
+                    encoder_state, multiplier=beam_width)
+                beam_search_init_state = decoder_cell.zero_state(batch_size*beam_width, tf.float32).clone(cell_state=init_state)
+                
                 decoder_beam_search = tf.contrib.seq2seq.BeamSearchDecoder(
                     cell=decoder_cell,
                     embedding=embedding,
@@ -142,7 +144,7 @@ class generator_model():
                     length_penalty_weight=0.0)
                 output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_beam_search,
                     swap_memory=True, scope=decoder_scope, maximum_iterations=self.max_inference_length)
-                self.result_beam_search = outputs.predicted_ids"""
+                self.result_beam_search = output.predicted_ids
 
             dim = tf.shape(logits)[0]
             decoder_output = tf.split(decoder_output, [dim, max_length_decoder-dim])[0]
