@@ -16,6 +16,16 @@ def cut(resp):
             break
     return resp
 
+def out(batch, reader):
+    for post, resp in batch:
+        print '(',
+        for word in post:
+            print reader.symbol[word], 
+        print '), (',
+        for word in resp:
+            print reader.symbol[word],
+        print ')\n',
+
 class generator_model():
     def __init__(self,
                 vocab_size,
@@ -25,7 +35,8 @@ class generator_model():
                 max_length_encoder, max_length_decoder,
                 max_gradient_norm,
                 batch_size_num,
-                learning_rate):
+                learning_rate,
+                beam_width):
         self.batch_size = batch_size_num
         self.max_length_encoder = max_length_encoder
         self.max_length_decoder = max_length_decoder
@@ -96,27 +107,43 @@ class generator_model():
                     start_tokens=tf.fill([batch_size], GO_ID), end_token=EOS_ID)
                 decoder_sample = tf.contrib.seq2seq.BasicDecoder(decoder_cell, helper_sample, decoder_init_state,
                     output_layer=projection_layer)
-                output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_sample, output_time_major=True,
+                output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_sample,
                     swap_memory=True, scope=decoder_scope, maximum_iterations=self.max_inference_length)
-                self.result_sample = tf.transpose(output.sample_id)
+                self.result_sample = output.sample_id
                 
                 # inference (partial-sample)
                 helper_partial = tf.contrib.seq2seq.SampleEmbeddingHelper(embedding,
                     start_tokens=self.start_tokens, end_token=EOS_ID)
                 decoder_partial = tf.contrib.seq2seq.BasicDecoder(decoder_cell, helper_partial, partial_decoder_state,
                     output_layer=projection_layer)
-                output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_partial, output_time_major=True,
+                output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_partial,
                     swap_memory=True, scope=decoder_scope, maximum_iterations=self.max_inference_length)
-                self.result_partial = tf.transpose(output.sample_id)
+                self.result_partial = output.sample_id
 
                 # inference (greedy)
                 helper_greedy = tf.contrib.seq2seq.GreedyEmbeddingHelper(embedding, 
                     start_tokens=tf.fill([batch_size], GO_ID), end_token=EOS_ID)
                 decoder_greedy = tf.contrib.seq2seq.BasicDecoder(decoder_cell, helper_greedy, decoder_init_state,
                     output_layer=projection_layer)
-                output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_greedy, output_time_major=True,
+                output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_greedy,
                     swap_memory=True, scope=decoder_scope, maximum_iterations=self.max_inference_length)
-                self.result_greedy = tf.transpose(output.sample_id)
+                self.result_greedy = output.sample_id
+                """
+                # inference (beam search)
+                beam_search_init_state = tf.contrib.seq2seq.tile_batch(
+                    decoder_init_state, multiplier=beam_width)
+                decoder_beam_search = tf.contrib.seq2seq.BeamSearchDecoder(
+                    cell=decoder_cell,
+                    embedding=embedding,
+                    start_tokens=tf.fill([batch_size], GO_ID), end_token=EOS_ID,
+                    initial_state=beam_search_init_state,
+                    beam_width=beam_width,
+                    output_layer=projection_layer,
+                    length_penalty_weight=0.0)
+                output, _, _ = tf.contrib.seq2seq.dynamic_decode(decoder_beam_search,
+                    swap_memory=True, scope=decoder_scope, maximum_iterations=self.max_inference_length)
+                self.result_beam_search = outputs.predicted_ids"""
+
             dim = tf.shape(logits)[0]
             decoder_output = tf.split(decoder_output, [dim, max_length_decoder-dim])[0]
             target_weight = tf.split(self.target_weight, [dim, max_length_decoder-dim])[0]
@@ -253,7 +280,7 @@ class generator_model():
                     final_resp = np.append(resp, output[index]) if length > t else resp
                     feed_resp.append(final_resp)
                 feed_batch = [(batch[index][0], feed_resp[index]) for index in range(self.batch_size)]
-                poss = discriminator.evaluate(sess, feed_batch)
+                poss = discriminator.evaluate(sess, feed_batch, reader)
                 for index in range(self.batch_size):
                     mean_reward[index] += poss[index] / sample_times
                 for index in range(self.batch_size):
@@ -298,7 +325,7 @@ class generator_model():
         feed_dict[self.target_weight] = feed_weight
 
         loss, prob, _ = sess.run([self.loss_generator, self.prob, self.opt_update], feed_dict=feed_dict)
-        print 'generator updated, loss =', loss, prob
+        print 'generator updated, loss =', prob, loss
 
         # teacher forcing
         feed_dict = {}
@@ -325,7 +352,7 @@ class generator_model():
         feed_dict[self.target_weight] = feed_weight
 
         loss, prob, _ = sess.run([self.loss_generator, self.prob, self.opt_update], feed_dict=feed_dict)
-        print 'generator updated, loss =', loss, prob
+        print 'generator updated, loss =', prob, loss
 
     def generate(self, sess, batch, mode):
         feed_post = [[] for _ in range(self.max_length_encoder)]
@@ -420,7 +447,8 @@ class discriminator_model():
 
     def update(self, sess, generator, reader):
         batch = reader.get_batch(self.batch_size)
-        resp_generator = generator.generate(sess, batch, 'greedy')
+        
+        resp_generator = generator.generate(sess, batch, 'sample')
         feed_post = [[] for _ in range(self.max_post_length)]
         feed_resp = [[] for _ in range(self.max_resp_length)]
         feed_post_length = []
@@ -433,7 +461,7 @@ class discriminator_model():
             for time in range(self.max_post_length):
                 feed_post[time].append(post[time] if time < len(post) else PAD_ID)
                 feed_resp[time].append(resp[time] if time < len(resp) else PAD_ID)
-        
+        #out([(batch[index][0], resp_generator[index]) for index in range(self.batch_size)], reader)
         for index in range(self.batch_size):
             post = batch[index][0]
             resp = resp_generator[index]
@@ -455,12 +483,12 @@ class discriminator_model():
         poss, loss, acc, _ = sess.run([self.poss, self.loss, self.acc, self.opt_train], feed_dict=feed_dict)
         print 'discriminator:', loss, acc, poss
 
-    def evaluate(self, sess, batch):
+    def evaluate(self, sess, batch, reader):
         feed_post = [[] for _ in range(self.max_post_length)]
         feed_resp = [[] for _ in range(self.max_resp_length)]
         feed_post_length = []
         feed_resp_length = []
-        
+        #out(batch, reader)
         for post, resp in batch:
             feed_post_length.append(len(post))
             resp = cut(resp)

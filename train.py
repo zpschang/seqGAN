@@ -2,11 +2,11 @@ import tensorflow as tf
 
 from model import generator_model, discriminator_model
 from reader import reader
-
+"""
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"]="1"
-
+"""
 from tensorflow.python.client import device_lib
 print device_lib.list_local_devices()
 
@@ -23,7 +23,8 @@ g_model = generator_model(vocab_size=len(reader.d),
     max_length_decoder=40,
     max_gradient_norm=2,
     batch_size_num=20,
-    learning_rate=0.001)
+    learning_rate=0.001,
+    beam_width=5)
 d_model = discriminator_model(vocab_size=len(reader.d),
     embedding_size=128,
     lstm_size=128,
@@ -50,10 +51,10 @@ g_step = 50
 loop_num = 0
 
 try:
-    """
-    for _ in range(100000):
+    
+    for _ in range(10000):
         g_model.pretrain(sess, reader)
-    """
+    
     for _ in range(100):
         d_model.update(sess, g_model, reader)
     

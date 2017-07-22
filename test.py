@@ -21,7 +21,8 @@ g_model = generator_model(vocab_size=len(reader.d),
     max_length_decoder=40,
     max_gradient_norm=2,
     batch_size_num=20,
-    learning_rate=0.001)
+    learning_rate=0.001,
+    beam_width=5)
 d_model = discriminator_model(vocab_size=len(reader.d),
     embedding_size=128,
     lstm_size=128,
@@ -41,7 +42,7 @@ print 'load finished'
 while True:
     post = raw_input()
     batch = generate_batch(post)
-    resp = g_model.generate(sess, batch, 'greedy')[0]
+    resp = g_model.generate(sess, batch, 'sample')[0]
     for word in resp:
         print reader.symbol[word],
     print '\n',
