@@ -46,7 +46,7 @@ except:
     print 'load failed'
 
 d_step = 5
-g_step = 1
+g_step = 50
 loop_num = 0
 
 try:
@@ -54,7 +54,7 @@ try:
     for _ in range(100000):
         g_model.pretrain(sess, reader)
     """
-    for _ in range(1000):
+    for _ in range(100):
         d_model.update(sess, g_model, reader)
     
     while True:

@@ -134,8 +134,8 @@ class generator_model():
 
             # update for GAN
             one_hot = tf.one_hot(decoder_output, vocab_size)
-            prob = tf.reduce_sum(one_hot * logits, axis=2)
-            self.loss_generator = tf.reduce_sum(-tf.log(tf.maximum(prob, 1e-5)) * reward * target_weight) / tf.cast(batch_size, tf.float32)
+            self.prob = tf.reduce_sum(one_hot * tf.nn.softmax(logits), axis=2)
+            self.loss_generator = tf.reduce_sum(-tf.log(tf.maximum(self.prob, 1e-5)) * reward * target_weight) / tf.cast(batch_size, tf.float32)
             gradient_generator = tf.gradients(self.loss_generator, params)
             gradient_generator, _ = tf.clip_by_global_norm(gradient_generator, max_gradient_norm)
             optimizer = tf.train.AdamOptimizer(learning_rate)
@@ -250,6 +250,15 @@ class generator_model():
                     resp = cut(resp)
                     length = len(resp)
                     resp = resp[:t]
+                    final_resp = np.append(resp, output[index]) if length > t else resp
+                    feed_resp.append(final_resp)
+                feed_batch = [(batch[index][0], feed_resp[index]) for index in range(self.batch_size)]
+                poss = discriminator.evaluate(sess, feed_batch)
+                for index in range(self.batch_size):
+                    mean_reward[index] += poss[index] / sample_times
+                for index in range(self.batch_size):
+                    resp = cut(resp_generator[index])[:t]
+                    print poss[index], 
                     print '[', 
                     for word in resp:
                         print reader.symbol[word],
@@ -257,12 +266,6 @@ class generator_model():
                     for word in output[index]:
                         print reader.symbol[word],
                     print ']'
-                    final_resp = np.append(resp, output[index]) if length > t else resp
-                    feed_resp.append(final_resp)
-                feed_batch = [(batch[index][0], feed_resp[index]) for index in range(self.batch_size)]
-                poss = discriminator.evaluate(sess, feed_batch)
-                for index in range(self.batch_size):
-                    mean_reward[index] += poss[index] / sample_times
             feed_reward.append(mean_reward)
         for t in range(max_len):
             for index in range(self.batch_size):
@@ -285,6 +288,7 @@ class generator_model():
                     feed_weight[time].append(1)
                 else:
                     feed_weight[time].append(0)
+        print feed_reward
         feed_dict = {}
         feed_dict[self.encoder_input] = feed_post
         feed_dict[self.encoder_length] = feed_post_length
@@ -293,8 +297,8 @@ class generator_model():
         feed_dict[self.reward] = feed_reward
         feed_dict[self.target_weight] = feed_weight
 
-        loss, _ = sess.run([self.loss_generator, self.opt_update], feed_dict=feed_dict)
-        print 'generator updated, loss =', loss
+        loss, prob, _ = sess.run([self.loss_generator, self.prob, self.opt_update], feed_dict=feed_dict)
+        print 'generator updated, loss =', loss, prob
 
         # teacher forcing
         feed_dict = {}
@@ -320,8 +324,8 @@ class generator_model():
         feed_dict[self.reward] = feed_reward
         feed_dict[self.target_weight] = feed_weight
 
-        loss, _ = sess.run([self.loss_generator, self.opt_update], feed_dict=feed_dict)
-        print 'generator updated, loss =', loss
+        loss, prob, _ = sess.run([self.loss_generator, self.prob, self.opt_update], feed_dict=feed_dict)
+        print 'generator updated, loss =', loss, prob
 
     def generate(self, sess, batch, mode):
         feed_post = [[] for _ in range(self.max_length_encoder)]
@@ -472,7 +476,6 @@ class discriminator_model():
         feed_dict[self.resp_length] = feed_resp_length
 
         poss = sess.run(self.poss, feed_dict=feed_dict)
-        print poss
         return poss
 
 if __name__ == '__main__':
