@@ -42,7 +42,11 @@ print 'load finished'
 while True:
     post = raw_input()
     batch = generate_batch(post)
-    resp = g_model.generate(sess, batch, 'sample')[0]
+    resp = g_model.generate(sess, batch, 'beam_search')
+    print resp
+    resp = resp[0]
     for word in resp:
-        print reader.symbol[word],
+        for index in word:
+            print reader.symbol[index] if index >= 0 else 'unk',
+        print '\n',
     print '\n',

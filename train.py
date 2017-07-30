@@ -2,11 +2,11 @@ import tensorflow as tf
 
 from model import generator_model, discriminator_model
 from reader import reader
-"""
+
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
-"""
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
+
 from tensorflow.python.client import device_lib
 print device_lib.list_local_devices()
 
@@ -51,12 +51,26 @@ g_step = 50
 loop_num = 0
 
 try:
-    
-    for _ in range(10000):
-        g_model.pretrain(sess, reader)
-    
-    for _ in range(100):
-        d_model.update(sess, g_model, reader)
+    for __ in range(1000):
+        for _ in range(50):
+            g_model.pretrain(sess, reader)
+            if _ % 100 == 0:
+                batch = reader.get_batch(g_model.batch_size)
+                result = g_model.generate(sess, batch, 'sample')
+                for index in range(g_model.batch_size):
+                    post = batch[index][0]
+                    resp = result[index]
+                    def output(l):
+                        print '[',
+                        for word in l:
+                            print reader.symbol[word],
+                        print ']'
+                    output(post)
+                    output(resp)
+                    print '\n',
+        
+        for _ in range(4):
+            d_model.update(sess, g_model, reader)
     
     while True:
         for _ in range(d_step):
