@@ -36,7 +36,8 @@ class generator_model():
                 max_gradient_norm,
                 batch_size_num,
                 learning_rate,
-                beam_width):
+                beam_width,
+                embed=None):
         self.batch_size = batch_size_num
         self.max_length_encoder = max_length_encoder
         self.max_length_decoder = max_length_decoder
@@ -55,8 +56,10 @@ class generator_model():
             decoder_output = self.decoder_output
             # if decoder_output have 0 dimention ???
             self.decoder_input = tf.concat([tf.ones([1, batch_size], dtype=tf.int32) * GO_ID, decoder_output[:-1]], axis=0)
-
-            embedding = tf.get_variable('embedding', [vocab_size, embedding_size])
+            if embed == None:
+                embedding = tf.get_variable('embedding', [vocab_size, embedding_size])
+            else:
+                embedding = tf.get_variable('embedding', [vocab_size, embedding_size], initializer=embed)
             encoder_embedded = tf.nn.embedding_lookup(embedding, self.encoder_input)
             decoder_embedded = tf.nn.embedding_lookup(embedding, self.decoder_input)
 
@@ -209,7 +212,7 @@ class generator_model():
             for time in range(self.max_length_encoder):
                 feed_post[time].append(post[time] if time < len(post) else PAD_ID)
                 feed_resp[time].append(resp[time] if time < len(resp) else PAD_ID)
-                if time < len(resp) and resp[time] != UNK_ID:
+                if time < len(resp):
                     feed_weight[time].append(1)
                 else:
                     feed_weight[time].append(0)
@@ -326,7 +329,7 @@ class generator_model():
             feed_resp_length.append(len(resp))
             for time in range(self.max_length_decoder):
                 feed_resp[time].append(resp[time] if time < len(resp) else PAD_ID)
-                if time < len(resp) and resp[time] != UNK_ID:
+                if time < len(resp):
                     feed_weight[time].append(1)
                 else:
                     feed_weight[time].append(0)
@@ -359,7 +362,7 @@ class generator_model():
             for time in range(self.max_length_decoder):
                 feed_reward[time].append(evaluate_result[index] - 0.5)
                 feed_resp[time].append(resp[time] if time < len(resp) else PAD_ID)
-                if time < len(resp) and resp[time] != UNK_ID:
+                if time < len(resp):
                     feed_weight[time].append(1)
                 else:
                     feed_weight[time].append(0)
@@ -400,13 +403,17 @@ class discriminator_model():
                 max_post_length, max_resp_length,
                 max_gradient_norm,
                 batch_size_num,
-                learning_rate):
+                learning_rate,
+                embed=None):
         self.batch_size = batch_size_num
         self.max_post_length = max_post_length
         self.max_resp_length = max_resp_length
         #with tf.variable_scope('g_model', reuse=True):
             #embedding = tf.get_variable('embedding')
-        embedding = tf.get_variable('embedding', [vocab_size, embedding_size])
+        if embed == None:
+            embedding = tf.get_variable('embedding', [vocab_size, embedding_size])
+        else:
+            embedding = tf.get_variable('embedding', [vocab_size, embedding_size], initializer=embed)
         with tf.variable_scope('d_model') as scope:
             self.post_input = tf.placeholder(tf.int32, [max_post_length, None])
             self.resp_input = tf.placeholder(tf.int32, [max_resp_length, None])

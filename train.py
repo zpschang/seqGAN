@@ -69,8 +69,10 @@ try:
                     output(resp)
                     print '\n',
         
-        for _ in range(4):
+        for _ in range(20):
             d_model.update(sess, g_model, reader)
+        if __ % 40 == 0:
+            saver.save(sess, 'saved/model.ckpt')
     
     while True:
         for _ in range(d_step):

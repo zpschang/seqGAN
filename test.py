@@ -3,6 +3,11 @@ import tensorflow as tf
 from model import generator_model, discriminator_model
 from reader import reader
 import re
+
+import os
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_VISIBLE_DEVICES"]="3"
+
 UNK_ID = 2
 reader = reader('data/small/weibo_pair_train_Q.post',
     'data/small/weibo_pair_train_Q.response', 'data/words.txt')
@@ -45,8 +50,15 @@ while True:
     resp = g_model.generate(sess, batch, 'beam_search')
     print resp
     resp = resp[0]
+    print 'beam search'
     for word in resp:
         for index in word:
             print reader.symbol[index] if index >= 0 else 'unk',
         print '\n',
+    print '\n',
+    resp = g_model.generate(sess, batch, 'sample')
+    resp = resp[0]
+    print 'sample'
+    for word in resp:
+        print reader.symbol[word] if word >= 0 else 'unk',
     print '\n',
