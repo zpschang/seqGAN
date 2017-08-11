@@ -3,6 +3,9 @@ import tensorflow as tf
 from model import generator_model, discriminator_model
 from reader import reader
 
+gpu_rate = 0.5
+gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_rate)  
+
 import os
 os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
 os.environ["CUDA_VISIBLE_DEVICES"]="3"
@@ -11,7 +14,7 @@ from tensorflow.python.client import device_lib
 print device_lib.list_local_devices()
 
 reader = reader('data/small/weibo_pair_train_Q.post',
-    'data/small/weibo_pair_train_Q.response', 'data/words.txt')
+    'data/small/weibo_pair_train_Q.response', 'data/words_99%.txt')
 
 print len(reader.d)
 
@@ -37,7 +40,7 @@ d_model = discriminator_model(vocab_size=len(reader.d),
 
 saver = tf.train.Saver(tf.global_variables(), keep_checkpoint_every_n_hours=1.0)
 
-sess = tf.Session()
+sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
 try:
     loader = tf.train.import_meta_graph('saved/model.ckpt.meta')
     loader.restore(sess, tf.train.latest_checkpoint('saved/'))
@@ -51,7 +54,7 @@ g_step = 50
 loop_num = 0
 
 try:
-    for __ in range(1000):
+    for __ in range(2000):
         for _ in range(50):
             g_model.pretrain(sess, reader)
             if _ % 100 == 0:
@@ -69,7 +72,7 @@ try:
                     output(resp)
                     print '\n',
         
-        for _ in range(20):
+        for _ in range(5):
             d_model.update(sess, g_model, reader)
         if __ % 40 == 0:
             saver.save(sess, 'saved/model.ckpt')

@@ -170,6 +170,7 @@ class generator_model():
             # update for pretraining
             cross_entropy = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=decoder_output, logits=logits) # max_len * batch
             self.loss_pretrain = tf.reduce_sum(target_weight * cross_entropy) / tf.cast(batch_size, tf.float32)
+            self.perplexity = tf.exp(tf.reduce_sum(target_weight * cross_entropy) / tf.reduce_sum(target_weight))
             gradient_pretrain = tf.gradients(self.loss_pretrain, params)
             gradient_pretrain, _ = tf.clip_by_global_norm(gradient_pretrain, max_gradient_norm)
             optimizer = tf.train.AdamOptimizer(learning_rate)
@@ -224,7 +225,7 @@ class generator_model():
         feed_dict[self.encoder_length] = feed_post_length
         feed_dict[self.decoder_length] = feed_resp_length
         
-        result, loss, state, _ = sess.run([self.result_train, self.loss_pretrain, self.decoder_state, self.opt_pretrain], feed_dict=feed_dict)
+        perplexity, result, loss, state, _ = sess.run([self.perplexity, self.result_train, self.loss_pretrain, self.decoder_state, self.opt_pretrain], feed_dict=feed_dict)
         """
         for sentence in result:
             for word in sentence:
@@ -233,7 +234,7 @@ class generator_model():
                     break
             print '\n',
         """
-        print loss
+        print perplexity, loss
         print reader.epoch, str(reader.k)+'/958640', reader.k / 958640.0
         
         
