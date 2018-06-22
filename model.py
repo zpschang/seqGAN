@@ -1,4 +1,5 @@
 import tensorflow as tf
+import tensorflow.contrib.seq2seq
 import numpy as np
 from tensorflow.python.layers import core as layers_core
 
@@ -88,6 +89,7 @@ class generator_model():
             
             with tf.variable_scope('decoder') as decoder_scope:
                 attention_state = tf.transpose(encoder_output, [1, 0, 2])
+                print attention_state, lstm_size, self.encoder_length
                 attention_mechanism = tf.contrib.seq2seq.LuongAttention(lstm_size, attention_state,
                     memory_sequence_length=self.encoder_length)
                 # train or evaluate
@@ -234,7 +236,8 @@ class generator_model():
                     break
             print '\n',
         """
-        print perplexity, loss
+        print 'perplexity:', perplexity,
+        print 'loss:', loss,
         print reader.epoch, str(reader.k)+'/958640', reader.k / 958640.0
         
         
@@ -442,12 +445,15 @@ class discriminator_model():
             post_state_concat = concat(post_state)
             resp_state_concat = concat(resp_state)
 
+            """
             cell_sentence = tf.contrib.rnn.BasicLSTMCell(lstm_size)
             init_state = cell_sentence.zero_state(batch_size, tf.float32)
             out1, state_mid = cell_sentence(post_state_concat, init_state, scope=scope)
             out2, state_final = cell_sentence(resp_state_concat, state_mid, scope=scope)
 
             state_final_concat = tf.concat([state_final.c, state_final.h], axis=1)
+            """
+            state_final_concat = tf.concat([post_state_concat, resp_state_concat], axis=1)
             logits = tf.layers.dense(state_final_concat, 2)
             print logits, self.labels
             self.loss = tf.reduce_mean(tf.nn.sparse_softmax_cross_entropy_with_logits(labels=self.labels, logits=logits))
@@ -540,7 +546,7 @@ class discriminator_model():
         return poss
 
 if __name__ == '__main__':
-    g = generator_model(1000, 128, 101, 4, 98, 99, 5, 20, 0.001)
+    g = generator_model(1000, 128, 101, 4, 98, 99, 5, 20, 0.001, 5)
     #g.all_params()
     d = discriminator_model(1000, 100, 101, 4, 40, 40, 2, 20, 0.001)
     #d.all_params()

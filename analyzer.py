@@ -28,6 +28,7 @@ word_num = 0
 file_result.write('<go>\n<eos>\n<unk>\n<pad>\n')
 
 for item in sorted(symbol.items(), key=lambda x:x[1], reverse=True):
+    print str([item[0].encode('utf-8')])
     file_result.write(item[0].encode('utf-8') + '\n')
     num += item[1]
     word_num += 1

@@ -1,13 +1,15 @@
 import tensorflow as tf
-
 from model import generator_model, discriminator_model
 from reader import reader
+import sys
+reload(sys)
+sys.setdefaultencoding("utf-8")
 
 gpu_rate = 0.5
 gpu_options = tf.GPUOptions(per_process_gpu_memory_fraction=gpu_rate)  
 
 import os
-os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"   # see issue #152
+os.environ["CUDA_DEVICE_ORDER"]="PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"]="3"
 
 from tensorflow.python.client import device_lib
@@ -40,7 +42,9 @@ d_model = discriminator_model(vocab_size=len(reader.d),
 
 saver = tf.train.Saver(tf.global_variables(), keep_checkpoint_every_n_hours=1.0)
 
-sess = tf.Session(config=tf.ConfigProto(gpu_options=gpu_options))
+config = tf.ConfigProto()
+config.gpu_options.allow_growth = True
+sess = tf.Session(config=config)
 try:
     loader = tf.train.import_meta_graph('saved/model.ckpt.meta')
     loader.restore(sess, tf.train.latest_checkpoint('saved/'))

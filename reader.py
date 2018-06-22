@@ -8,7 +8,7 @@ class reader():
             self.symbol = []
             num = 0
             for line in file_word.readlines():
-                line = line.decode('utf-8')[:-1]
+                line = line[:-1]
                 self.symbol.append(line)
                 self.d[line] = num
                 num += 1
@@ -31,8 +31,8 @@ class reader():
                 self.k = 0
                 print 'epoch: ', self.epoch
                 return self.get_batch(batch_size)
-            post = post.decode('utf-8')[:-1]
-            resp = resp.decode('utf-8')[:-1]
+            post = post[:-1]
+            resp = resp[:-1]
             words_post = re.split(' ', post)
             words_resp = re.split(' ', resp)
             index_post = [self.d[word] if word in self.d else UNK_ID for word in words_post]

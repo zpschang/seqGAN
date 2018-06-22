@@ -1,3 +1,5 @@
+# encoding=utf8
+
 import tensorflow as tf
 
 from model import generator_model, discriminator_model
@@ -47,21 +49,47 @@ loader = tf.train.import_meta_graph('saved/model.ckpt.meta')
 loader.restore(sess, tf.train.latest_checkpoint('saved/'))
 print 'load finished'
 
+from_screen = raw_input('is input from screen: (y)/n')
+from_screen = False if from_screen == 'n' else True
+
+if not from_screen:
+    file_input = open('data/small/test.post', 'r')
+    bs_output = open('data/small/test_bs.response', 'w')
+    sample_output = open('data/small/test_sample.response', 'w')
+
 while True:
-    post = raw_input()
+    if from_screen:
+        post = raw_input()
+    else:
+        post = file_input.readline()
     batch = generate_batch(post)
     resp = g_model.generate(sess, batch, 'beam_search')
     print resp
     resp = resp[0]
+
     print 'beam search'
-    for word in resp:
-        for index in word:
-            print reader.symbol[index] if index >= 0 else 'unk',
-        print '\n',
-    print '\n',
+    result = ''
+    for sentence in resp:
+        for index in sentence:
+            result += reader.symbol[index] if index >= 0 else 'unk'
+            result += ' '
+        result += '\n'
+    result += '\n'
+    if from_screen:
+        print result,
+    else:
+        bs_output.write(result)
+
     resp = g_model.generate(sess, batch, 'sample')
     resp = resp[0]
+
     print 'sample'
+    result = ''
     for word in resp:
-        print reader.symbol[word] if word >= 0 else 'unk',
-    print '\n',
+        result += reader.symbol[word] if word >= 0 else 'unk'
+        result += ''
+    result += '\n'
+    if from_screen:
+        print result,
+    else:
+        sample_output.write(result)
